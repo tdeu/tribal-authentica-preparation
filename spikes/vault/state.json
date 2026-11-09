@@ -1,0 +1,29 @@
+{
+  "txs": [
+    {
+      "label": "funding",
+      "txid": "85874c532f785ccb7161245ca28f2a40594fa64ba6d945cf0e872c13853a6688"
+    },
+    {
+      "label": "mint",
+      "txid": "f5dc5541807132a4483106436f89e138a9fbc725cd52a65d423318011e1650db"
+    },
+    {
+      "label": "buy #1 (buyer1)",
+      "txid": "dd295fa2a8d1c29ebdf354c64825b234962feb840337128a81609b44fd1d08cf"
+    },
+    {
+      "label": "list (buyer1, 6000 sats)",
+      "txid": "994c52c6f53f3f967b8a5104abea3d4737078c66a5da473504e2fa2627e11b6e"
+    },
+    {
+      "label": "buy #2 (buyer2)",
+      "txid": "5e3df621fd827e9830c98c2213b0f992f4291c8f4ff1a4cbdaf9a40a646fd522"
+    },
+    {
+      "label": "list (buyer2, 2000 sats)",
+      "txid": "05ecb5d1a7db5acb39942492713ba5577ff3c2631f91698c87e5a63e13c3e615"
+    }
+  ],
+  "category": "85874c532f785ccb7161245ca28f2a40594fa64ba6d945cf0e872c13853a6688"
+}

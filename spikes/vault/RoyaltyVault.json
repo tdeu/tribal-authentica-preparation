@@ -1,0 +1,68 @@
+{
+  "contractName": "RoyaltyVault",
+  "constructorInputs": [
+    { "name": "artisanLockingBytecode", "type": "bytes" },
+    { "name": "royaltyBps", "type": "int" },
+    { "name": "minRoyaltySats", "type": "int" }
+  ],
+  "abi": [
+    {
+      "name": "list",
+      "inputs": [
+        { "name": "ownerPk", "type": "pubkey" },
+        { "name": "ownerSig", "type": "sig" },
+        { "name": "newPrice", "type": "int" }
+      ]
+    },
+    {
+      "name": "buy",
+      "inputs": [
+        { "name": "buyerPkh", "type": "bytes20" }
+      ]
+    }
+  ],
+  "bytecode": "OP_3 OP_PICK OP_0 OP_NUMEQUAL OP_IF OP_INPUTINDEX OP_0 OP_NUMEQUALVERIFY OP_0 OP_UTXOTOKENCOMMITMENT OP_SIZE 24 OP_NUMEQUALVERIFY 14 OP_SPLIT OP_8 OP_SPLIT OP_NIP OP_DUP OP_BIN2NUM OP_7 OP_PICK OP_HASH160 OP_3 OP_PICK OP_EQUALVERIFY OP_8 OP_ROLL OP_8 OP_ROLL OP_CHECKSIGVERIFY OP_7 OP_PICK OP_5 OP_PICK OP_MUL 1027 OP_DIV OP_SWAP OP_5 OP_ROLL OP_MUL 1027 OP_DIV OP_MAX OP_4 OP_ROLL OP_MAX OP_5 OP_PICK OP_0 OP_NUMEQUAL OP_6 OP_PICK OP_ROT 2202 OP_ADD OP_GREATERTHANOREQUAL OP_BOOLOR OP_VERIFY OP_0 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_0 OP_OUTPUTTOKENCATEGORY OP_0 OP_UTXOTOKENCATEGORY OP_EQUALVERIFY OP_0 OP_OUTPUTTOKENAMOUNT OP_0 OP_NUMEQUALVERIFY OP_0 OP_OUTPUTVALUE OP_0 OP_UTXOVALUE OP_GREATERTHANOREQUAL OP_VERIFY OP_0 OP_OUTPUTTOKENCOMMITMENT OP_ROT OP_5 OP_ROLL OP_8 OP_NUM2BIN OP_CAT OP_ROT OP_CAT OP_EQUAL OP_NIP OP_NIP OP_ELSE OP_3 OP_ROLL OP_1 OP_NUMEQUALVERIFY OP_3 OP_ROLL OP_SIZE 14 OP_EQUALVERIFY OP_INPUTINDEX OP_0 OP_NUMEQUALVERIFY OP_0 OP_UTXOTOKENCOMMITMENT OP_SIZE 24 OP_NUMEQUALVERIFY 14 OP_SPLIT OP_8 OP_SPLIT OP_SWAP OP_BIN2NUM OP_SWAP OP_BIN2NUM OP_OVER OP_0 OP_GREATERTHAN OP_VERIFY OP_0 OP_OUTPUTBYTECODE OP_0 OP_UTXOBYTECODE OP_EQUALVERIFY OP_0 OP_OUTPUTTOKENCATEGORY OP_0 OP_UTXOTOKENCATEGORY OP_EQUALVERIFY OP_0 OP_OUTPUTTOKENAMOUNT OP_0 OP_NUMEQUALVERIFY OP_0 OP_OUTPUTVALUE OP_0 OP_UTXOVALUE OP_GREATERTHANOREQUAL OP_VERIFY OP_0 OP_OUTPUTTOKENCOMMITMENT OP_4 OP_ROLL OP_0 OP_8 OP_NUM2BIN OP_CAT OP_3 OP_PICK OP_8 OP_NUM2BIN OP_CAT OP_EQUALVERIFY 76a914 OP_3 OP_ROLL OP_CAT 88ac OP_CAT OP_DUP OP_4 OP_PICK OP_EQUAL OP_IF OP_1 OP_OUTPUTBYTECODE OP_4 OP_PICK OP_EQUALVERIFY OP_1 OP_OUTPUTVALUE OP_3 OP_PICK OP_GREATERTHANOREQUAL OP_VERIFY OP_ELSE OP_2 OP_PICK OP_5 OP_PICK OP_MUL 1027 OP_DIV OP_2 OP_PICK OP_6 OP_PICK OP_MUL 1027 OP_DIV OP_MAX OP_6 OP_PICK OP_MAX OP_1 OP_OUTPUTBYTECODE OP_2 OP_PICK OP_EQUALVERIFY OP_1 OP_OUTPUTVALUE OP_4 OP_PICK OP_2 OP_PICK OP_SUB OP_GREATERTHANOREQUAL OP_VERIFY OP_2 OP_OUTPUTBYTECODE OP_5 OP_PICK OP_EQUALVERIFY OP_2 OP_OUTPUTVALUE OP_OVER OP_GREATERTHANOREQUAL OP_VERIFY OP_DROP OP_ENDIF OP_2DROP OP_2DROP OP_2DROP OP_1 OP_ENDIF",
+  "source": "// PRE-HACKATHON SPIKE — NOT PART OF THE SUBMISSION\npragma cashscript ^0.14.0;\n\n// One MUTABLE NFT per mask, locked in this contract forever.\n// Commitment (36 bytes) = ownerPkh (20) || price (8 LE, 0 = not for sale) || lastSalePrice (8 LE).\n//\n// The vault input must be input 0 and the NFT always comes back as output 0.\n// This blocks spending two vault UTXOs in one tx where both \"share\" output 0\n// and the second NFT escapes.\n//\n// Royalty = max(price * bps, lastSalePrice * bps, minRoyaltySats).\n// Indexing on the last sale stops a cheap \"wash\" resale to an accomplice from cutting the royalty.\n// minRoyaltySats must be >= 546 (dust); checked by the deploy script, the contract cannot check it.\ncontract RoyaltyVault(bytes artisanLockingBytecode, int royaltyBps, int minRoyaltySats) {\n\n    // Owner sets a new price (0 = delist). Owner and lastSalePrice do not change.\n    function list(pubkey ownerPk, sig ownerSig, int newPrice) {\n        require(this.activeInputIndex == 0);\n        bytes commitment = tx.inputs[0].nftCommitment;\n        require(commitment.length == 36);\n        bytes ownerPkhRaw, bytes rest = commitment.split(20);\n        bytes20 ownerPkh = unsafe_bytes20(ownerPkhRaw);\n        bytes lastSaleBytes = rest.split(8)[1];\n        int lastSalePrice = int(lastSaleBytes);\n\n        require(hash160(ownerPk) == ownerPkh);\n        require(checkSig(ownerSig, ownerPk));\n\n        // Not for sale, or the seller's share (price - royalty) stays above dust\n        int minRoyalty = max(max(newPrice * royaltyBps / 10000, lastSalePrice * royaltyBps / 10000), minRoyaltySats);\n        require(newPrice == 0 || newPrice >= minRoyalty + 546);\n\n        // NFT stays here, same category + capability, no fungible amount, no value drained\n        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);\n        require(tx.outputs[0].tokenCategory == tx.inputs[0].tokenCategory);\n        require(tx.outputs[0].tokenAmount == 0);\n        require(tx.outputs[0].value >= tx.inputs[0].value);\n        require(tx.outputs[0].nftCommitment == ownerPkh + toPaddedBytes(newPrice, 8) + lastSaleBytes);\n    }\n\n    // Anyone can buy a listed mask. No signature: the buyer's payment inputs are signed by the buyer.\n    function buy(bytes20 buyerPkh) {\n        require(this.activeInputIndex == 0);\n        bytes commitment = tx.inputs[0].nftCommitment;\n        require(commitment.length == 36);\n        bytes ownerPkhRaw, bytes rest = commitment.split(20);\n        bytes priceBytes, bytes lastSaleBytes = rest.split(8);\n        int price = int(priceBytes);\n        int lastSalePrice = int(lastSaleBytes);\n        require(price > 0);\n\n        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);\n        require(tx.outputs[0].tokenCategory == tx.inputs[0].tokenCategory);\n        require(tx.outputs[0].tokenAmount == 0);\n        require(tx.outputs[0].value >= tx.inputs[0].value);\n        require(tx.outputs[0].nftCommitment == buyerPkh + toPaddedBytes(0, 8) + toPaddedBytes(price, 8));\n\n        bytes25 sellerLock = new LockingBytecodeP2PKH(unsafe_bytes20(ownerPkhRaw));\n        if (sellerLock == artisanLockingBytecode) {\n            // First sale (or artisan reselling): one output, artisan gets the full price\n            require(tx.outputs[1].lockingBytecode == artisanLockingBytecode);\n            require(tx.outputs[1].value >= price);\n        } else {\n            int royalty = max(max(price * royaltyBps / 10000, lastSalePrice * royaltyBps / 10000), minRoyaltySats);\n            require(tx.outputs[1].lockingBytecode == sellerLock);\n            require(tx.outputs[1].value >= price - royalty);\n            require(tx.outputs[2].lockingBytecode == artisanLockingBytecode);\n            require(tx.outputs[2].value >= royalty);\n        }\n    }\n}\n",
+  "fingerprint": "a3ee66f088eb4f67ecd0474c33fdf8ddaf1aeb97264fbdf99a01cbdb7720710e",
+  "debug": {
+    "bytecode": "5379009c63c0009d00cf8201249d01147f587f7776815779a9537988587a587aad5779557995021027967c557a9502102796a4547aa45579009c56797b02220293a29b6900cd00c78800d100ce8800d3009d00cc00c6a26900d27b557a58807e7b7e87777767537a519d537a82011488c0009d00cf8201249d01147f587f7c817c817800a06900cd00c78800d100ce8800d3009d00cc00c6a26900d2547a0058807e537958807e880376a914537a7e0288ac7e765479876351cd54798851cc5379a26967527955799502102796527956799502102796a45679a451cd52798851cc5479527994a26952cd55798852cc78a26975686d6d6d5168",
+    "sourceMap": "17:4:39:5;;;;;18:16:18:37;:41::42;:8::44:1;19:37:19:38:0;:27::53:1;20:16:20:33;:37::39:0;:8::41:1;21:57:21:59:0;:40::60:1;23:41:23:42:0;:30::43:1;:::46;24:32:24:45:0;:28::46:1;26:24:26:31:0;;:16::32:1;:36::44:0;;:8::46:1;27:25:27:33:0;;:35::42;;:8::45:1;30:33:30:41:0;;:44::54;;:33:::1;:57::62:0;:33:::1;:64::77:0;:80::90;;:64:::1;:93::98:0;:64:::1;:29::99;:101::115:0;;:25::116:1;31:16:31:24:0;;:28::29;:16:::1;:33::41:0;;:45::55;:58::61;:45:::1;:33;:16;:8::63;34:27:34:28:0;:16::45:1;:59::60:0;:49::77:1;:8::79;35:27:35:28:0;:16::43:1;:57::58:0;:47::73:1;:8::75;36:27:36:28:0;:16::41:1;:45::46:0;:8::48:1;37:27:37:28:0;:16::35:1;:49::50:0;:39::57:1;:16;:8::59;38:27:38:28:0;:16::43:1;:47::55:0;:72::80;;:82::83;:58::84:1;:47;:87::100:0;:47:::1;:8::102;17:62:39:5;;:4;42::70::0;;;;:17:42:33;;;;;43:16:43:37;:41::42;:8::44:1;44:37:44:38:0;:27::53:1;45:16:45:33;:37::39:0;:8::41:1;46:57:46:59:0;:40::60:1;47:59:47::0;:48::61:1;48:24:48:34:0;:20::35:1;49:32:49:45:0;:28::46:1;50:16:50:21:0;:24::25;:16:::1;:8::27;52:27:52:28:0;:16::45:1;:59::60:0;:49::77:1;:8::79;53:27:53:28:0;:16::43:1;:57::58:0;:47::73:1;:8::75;54:27:54:28:0;:16::41:1;:45::46:0;:8::48:1;55:27:55:28:0;:16::35:1;:49::50:0;:39::57:1;:16;:8::59;56:27:56:28:0;:16::43:1;:47::55:0;;:72::73;:75::76;:58::77:1;:47;:94::99:0;;:101::102;:80::103:1;:47;:8::105;58:29:58:82:0;:69::80;;:29::82:1;;;59:12:59:22:0;:26::48;;:12:::1;:50:63:9:0;61:31:61:32;:20::49:1;:53::75:0;;:12::77:1;62:31:62:32:0;:20::39:1;:43::48:0;;:20:::1;:12::50;63:15:69:9:0;64:34:64:39;;:42::52;;:34:::1;:55::60:0;:34:::1;:62::75:0;;:78::88;;:62:::1;:91::96:0;:62:::1;:30::97;:99::113:0;;:26::114:1;65:31:65:32:0;:20::49:1;:53::63:0;;:12::65:1;66:31:66:32:0;:20::39:1;:43::48:0;;:51::58;;:43:::1;:20;:12::60;67:31:67:32:0;:20::49:1;:53::75:0;;:12::77:1;68:31:68:32:0;:20::39:1;:43::50:0;:20:::1;:12::52;63:15:69:9;;42:35:70:5;;;;14:0:71:1",
+    "logs": [],
+    "requires": [
+      { "ip": 10, "line": 18 },
+      { "ip": 15, "line": 20 },
+      { "ip": 28, "line": 26 },
+      { "ip": 33, "line": 27 },
+      { "ip": 62, "line": 31 },
+      { "ip": 67, "line": 34 },
+      { "ip": 72, "line": 35 },
+      { "ip": 76, "line": 36 },
+      { "ip": 82, "line": 37 },
+      { "ip": 94, "line": 38 },
+      { "ip": 108, "line": 43 },
+      { "ip": 113, "line": 45 },
+      { "ip": 125, "line": 50 },
+      { "ip": 130, "line": 52 },
+      { "ip": 135, "line": 53 },
+      { "ip": 139, "line": 54 },
+      { "ip": 145, "line": 55 },
+      { "ip": 159, "line": 56 },
+      { "ip": 175, "line": 61 },
+      { "ip": 181, "line": 62 },
+      { "ip": 205, "line": 65 },
+      { "ip": 214, "line": 66 },
+      { "ip": 219, "line": 67 },
+      { "ip": 224, "line": 68 }
+    ],
+    "sourceTags": "91:92:sc;98:102:pv;222:222:sc"
+  },
+  "compiler": {
+    "name": "cashc",
+    "version": "0.14.0",
+    "options": {
+      "enforceFunctionParameterTypes": true,
+      "enforceLocktimeGuard": true
+    }
+  },
+  "updatedAt": "2026-11-09T12:42:56.267Z"
+}

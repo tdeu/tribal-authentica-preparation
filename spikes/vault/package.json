@@ -1,0 +1,21 @@
+{
+  "name": "vault",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "private": "true",
+  "dependencies": {
+    "@bitauth/libauth": "^3.0.0",
+    "cashc": "^0.14.0",
+    "cashscript": "^0.14.0",
+    "dotenv": "^18.0.10",
+    "tsx": "^4.23.15"
+  }
+}

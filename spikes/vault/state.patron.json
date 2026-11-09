@@ -1,0 +1,34 @@
+{
+  "txs": [
+    {
+      "label": "funding A",
+      "txid": "bbf20675d324153bfbc4e447a60c96e0e1a38f718fdbefc130a748136473f9bb"
+    },
+    {
+      "label": "funding B",
+      "txid": "4fe9c806a6cf6b88648df3c8642837aa917e129772c6b102d90306dce6c3f2c4"
+    },
+    {
+      "label": "patron genesis",
+      "txid": "cdcfb2a79d7ef0af19f8fc2668731610c67c5b428d2394d3e8947c4dba65b84d"
+    },
+    {
+      "label": "fake token genesis",
+      "txid": "0aa10cf94cfff89f87cbcd5f1c408bde996ad5c83c43ec3b146465660d2cbb25"
+    },
+    {
+      "label": "parallel claim (buyer1)",
+      "txid": "39ef44e628e4705a11acd0447645ae5c55aa11cba14db746b47ce621b9292063"
+    },
+    {
+      "label": "parallel claim (buyer2)",
+      "txid": "8a5cb001bf809082818e2ab5ff93f975c7428a472abad6b9216f35c16a8c9d28"
+    },
+    {
+      "label": "emptying claim (buyer2)",
+      "txid": "b7cb725689565dd5a2de7dabb9fd5f9dbddf7defb79abeabd158516714ec21de"
+    }
+  ],
+  "category": "bbf20675d324153bfbc4e447a60c96e0e1a38f718fdbefc130a748136473f9bb",
+  "fakeCategory": "4fe9c806a6cf6b88648df3c8642837aa917e129772c6b102d90306dce6c3f2c4"
+}

@@ -1,0 +1,71 @@
+// PRE-HACKATHON SPIKE — NOT PART OF THE SUBMISSION
+pragma cashscript ^0.14.0;
+
+// One MUTABLE NFT per mask, locked in this contract forever.
+// Commitment (36 bytes) = ownerPkh (20) || price (8 LE, 0 = not for sale) || lastSalePrice (8 LE).
+//
+// The vault input must be input 0 and the NFT always comes back as output 0.
+// This blocks spending two vault UTXOs in one tx where both "share" output 0
+// and the second NFT escapes.
+//
+// Royalty = max(price * bps, lastSalePrice * bps, minRoyaltySats).
+// Indexing on the last sale stops a cheap "wash" resale to an accomplice from cutting the royalty.
+// minRoyaltySats must be >= 546 (dust); checked by the deploy script, the contract cannot check it.
+contract RoyaltyVault(bytes artisanLockingBytecode, int royaltyBps, int minRoyaltySats) {
+
+    // Owner sets a new price (0 = delist). Owner and lastSalePrice do not change.
+    function list(pubkey ownerPk, sig ownerSig, int newPrice) {
+        require(this.activeInputIndex == 0);
+        bytes commitment = tx.inputs[0].nftCommitment;
+        require(commitment.length == 36);
+        bytes ownerPkhRaw, bytes rest = commitment.split(20);
+        bytes20 ownerPkh = unsafe_bytes20(ownerPkhRaw);
+        bytes lastSaleBytes = rest.split(8)[1];
+        int lastSalePrice = int(lastSaleBytes);
+
+        require(hash160(ownerPk) == ownerPkh);
+        require(checkSig(ownerSig, ownerPk));
+
+        // Not for sale, or the seller's share (price - royalty) stays above dust
+        int minRoyalty = max(max(newPrice * royaltyBps / 10000, lastSalePrice * royaltyBps / 10000), minRoyaltySats);
+        require(newPrice == 0 || newPrice >= minRoyalty + 546);
+
+        // NFT stays here, same category + capability, no fungible amount, no value drained
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].tokenCategory == tx.inputs[0].tokenCategory);
+        require(tx.outputs[0].tokenAmount == 0);
+        require(tx.outputs[0].value >= tx.inputs[0].value);
+        require(tx.outputs[0].nftCommitment == ownerPkh + toPaddedBytes(newPrice, 8) + lastSaleBytes);
+    }
+
+    // Anyone can buy a listed mask. No signature: the buyer's payment inputs are signed by the buyer.
+    function buy(bytes20 buyerPkh) {
+        require(this.activeInputIndex == 0);
+        bytes commitment = tx.inputs[0].nftCommitment;
+        require(commitment.length == 36);
+        bytes ownerPkhRaw, bytes rest = commitment.split(20);
+        bytes priceBytes, bytes lastSaleBytes = rest.split(8);
+        int price = int(priceBytes);
+        int lastSalePrice = int(lastSaleBytes);
+        require(price > 0);
+
+        require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+        require(tx.outputs[0].tokenCategory == tx.inputs[0].tokenCategory);
+        require(tx.outputs[0].tokenAmount == 0);
+        require(tx.outputs[0].value >= tx.inputs[0].value);
+        require(tx.outputs[0].nftCommitment == buyerPkh + toPaddedBytes(0, 8) + toPaddedBytes(price, 8));
+
+        bytes25 sellerLock = new LockingBytecodeP2PKH(unsafe_bytes20(ownerPkhRaw));
+        if (sellerLock == artisanLockingBytecode) {
+            // First sale (or artisan reselling): one output, artisan gets the full price
+            require(tx.outputs[1].lockingBytecode == artisanLockingBytecode);
+            require(tx.outputs[1].value >= price);
+        } else {
+            int royalty = max(max(price * royaltyBps / 10000, lastSalePrice * royaltyBps / 10000), minRoyaltySats);
+            require(tx.outputs[1].lockingBytecode == sellerLock);
+            require(tx.outputs[1].value >= price - royalty);
+            require(tx.outputs[2].lockingBytecode == artisanLockingBytecode);
+            require(tx.outputs[2].value >= royalty);
+        }
+    }
+}

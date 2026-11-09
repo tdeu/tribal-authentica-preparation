@@ -1,0 +1,38 @@
+// PRE-HACKATHON SPIKE — NOT PART OF THE SUBMISSION
+pragma cashscript ^0.14.0;
+
+// Holds a stock of FUNGIBLE "Patron" tokens, split over several UTXOs so claims can run in parallel.
+// claim(): anyone gets exactly 1 token by paying the artisan >= patronPriceSats.
+//
+// Output layout:
+//   stock > 1:  [0] rest of stock (stock - 1) back here   [1] artisan >= price            [2] 1 token, any address
+//   stock = 1:  [0] artisan >= price + this UTXO's BCH     [1] 1 token, any address
+// When the last token leaves, nothing comes back: no empty UTXO is left at the contract,
+// and the BCH that UTXO carried goes to the artisan.
+//
+// patronCategory is in VM byte order (reversed from the txid shown by explorers).
+// patronPriceSats must be >= 546 (dust); checked by the deploy script.
+contract PatronDispenser(bytes artisanLockingBytecode, int patronPriceSats, bytes32 patronCategory) {
+    function claim() {
+        require(this.activeInputIndex == 0);
+        require(tx.inputs[0].tokenCategory == patronCategory);
+        int stock = tx.inputs[0].tokenAmount;
+        require(stock >= 1);
+
+        int artisanIndex = 0;
+        int artisanMin = patronPriceSats + tx.inputs[0].value;
+        if (stock > 1) {
+            require(tx.outputs[0].lockingBytecode == tx.inputs[0].lockingBytecode);
+            require(tx.outputs[0].tokenCategory == patronCategory);
+            require(tx.outputs[0].tokenAmount == stock - 1);
+            require(tx.outputs[0].value >= tx.inputs[0].value);
+            artisanIndex = 1;
+            artisanMin = patronPriceSats;
+        }
+
+        require(tx.outputs[artisanIndex].lockingBytecode == artisanLockingBytecode);
+        require(tx.outputs[artisanIndex].value >= artisanMin);
+        require(tx.outputs[artisanIndex + 1].tokenCategory == patronCategory);
+        require(tx.outputs[artisanIndex + 1].tokenAmount == 1);
+    }
+}
