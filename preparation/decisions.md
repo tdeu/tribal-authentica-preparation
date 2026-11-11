@@ -37,3 +37,38 @@ With indexing, the artisan still gets at least 10 % of the last sale (5 000 sats
 
 - `list()` requires `newPrice == 0` or `newPrice >= minRoyalty + 546`, so the seller's share is never dust.
 - `minRoyaltySats >= 546` is checked by the deploy script, since the contract cannot validate its constructor arguments.
+
+## Wallet connection — spike 11 Nov
+
+**Result:** a web page can get Selene to sign all three transaction shapes over WizardConnect,
+including the resale case where the **contract** needs the owner's signature + pubkey.
+Run as a **mainnet sign-only dry run** (fake inputs, nothing broadcast), all requests approved on Selene mobile:
+
+| Case | What | Result |
+|---|---|---|
+| A | plain send, user P2PKH inputs (`placeholderP2PKHUnlocker` + `inputPaths`) | WORKS |
+| B | `buy()`: user P2PKH inputs pay into the RoyaltyVault, vault input unsigned | WORKS |
+| C | `list()`: vault input needs `ownerSig` + `ownerPk` (`placeholderSignature()` / `placeholderPublicKey()`, `inputPaths` entry on the vault input) | WORKS — Selene filled both placeholders, signature valid over the redeem script, BCH VM accepts |
+
+Because C works, the fallback options (Paytaca for resale, BCH WalletConnect, redesigning `list()` around a P2PKH input) are not needed.
+
+**Stack:** `@wizardconnect/core` 0.2.5 + `@wizardconnect/dapp` 0.2.2, `cashscript` 0.14.0 (`generateWcTransactionObject()` + hand-built `inputPaths`), `@bitauth/libauth` 3.0.0, Vite + TS, Selene mobile. Code: `spikes/wizardconnect/`.
+
+**Findings:**
+- **Approval, then xpubs.** Selene patches `@wizardconnect/wallet` 0.2.3: its first `wallet_ready` has `paths: []`. The xpubs come in a second `wallet_ready` only after the user approves the connection in Selene. Until then, sign requests are silently dropped. The dapp cannot request paths; the protocol has no such message. The network shows only in the xpub prefix (`xpub` mainnet / `tpub` testnet).
+- **The transaction must be hex.** Selene rejects a decoded transaction object ("WizardConnect transaction must be hex encoded"). Send `binToHex(encodeTransaction(tx))`.
+- **BigInt serialization.** The relay does a plain `JSON.stringify`, so CashScript's WC object throws "Do not know how to serialize a BigInt" before anything is sent. Convert `sourceOutputs` with `JSON.parse(stringify(...))` (libauth `stringify` → `<bigint: Xn>` / `<Uint8Array: 0x…>`, which Selene parses).
+- **Placeholder filling confirmed.** In Selene's source, a contract input (`contract.artifact.contractName` + `redeemScript` present) skips the P2PKH ownership check. The 65-byte zero signature and 33-byte zero pubkey are replaced, signing over the redeem script with sighash `0x61` (ALL | UTXOS | FORKID; Selene refuses any other). Seen working in case C.
+- **No chain lookups at signing time.** Selene validates request structure and P2PKH key ownership only, which is why fake inputs could be signed.
+- **Chipnet not usable:** Selene web has no chipnet option (confirmed), so there was no chipnet run.
+
+**Caveat:** inputs were fake and nothing was broadcast. Not yet proven: a real broadcast of A/B/C (needs real funds, or a Selene build with chipnet), and Selene's behaviour with real token UTXOs in its own wallet.
+
+### Lessons for the real build
+
+- **Sign requests can be re-sent on relay reconnect.** Case B went out twice with the same sequence. Dedupe by sequence and make submit idempotent.
+- **Never rebuild a pending transaction on reconnect.** In the spike, fake state was rebuilt on reconnect. The real app must keep the exact tx it sent until it gets a response or a cancel.
+- **The relay flaps every 10–30 s, and the tab must stay in front.** Handle reconnects (ignore stale `disconnect` messages older than the latest `wallet_ready`) and show the connection status to the user.
+- **Demo with Selene mobile.** Selene web has no chipnet and can't paste `wiz://` links. Show a QR code plus a copy-link button.
+- Tell the user to approve the connection in Selene first; until then nothing works and nothing errors.
+- Time out sign requests and label failures by side: request not sent (ours), wallet error (Selene), no response.

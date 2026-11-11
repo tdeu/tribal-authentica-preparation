@@ -1,0 +1,29 @@
+{
+  "name": "wizardconnect-spike",
+  "private": true,
+  "type": "module",
+  "description": "PRE-HACKATHON SPIKE — NOT PART OF THE SUBMISSION. WizardConnect + Selene signing test (chipnet).",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preflight": "tsx scripts/preflight.ts",
+    "setup": "tsx scripts/setup.ts",
+    "artifact": "tsx scripts/artifact.ts"
+  },
+  "dependencies": {
+    "@bitauth/libauth": "3.0.0",
+    "@wizardconnect/core": "0.2.5",
+    "@wizardconnect/dapp": "0.2.2",
+    "cashscript": "0.14.0",
+    "qrcode": "1.5.4"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "@types/qrcode": "1.5.6",
+    "cashc": "0.14.0",
+    "dotenv": "18.0.10",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vite": "6.4.6"
+  }
+}

@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WizardConnect Spike</title>
+  <style>
+    :root { --bg: #fafafa; --fg: #1a1a1a; --muted: #666; --card: #fff; --line: #ddd; --ok: #1a7f37; --bad: #c62828; --warn: #b26a00; }
+    @media (prefers-color-scheme: dark) { :root { --bg: #141414; --fg: #eee; --muted: #999; --card: #1e1e1e; --line: #333; --ok: #4caf50; --bad: #ef5350; --warn: #ffb74d; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 16px; background: var(--bg); color: var(--fg); font: 14px/1.45 system-ui, sans-serif; max-width: 980px; margin-inline: auto; }
+    h1 { font-size: 18px; margin: 0 0 4px; } h2 { font-size: 15px; margin: 0 0 8px; }
+    .banner { color: var(--warn); font-size: 12px; margin-bottom: 16px; }
+    section { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    button { font: inherit; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); color: var(--fg); cursor: pointer; }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    code, pre, .mono { font-family: ui-monospace, Consolas, monospace; font-size: 12px; word-break: break-all; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 4px 0; }
+    .muted { color: var(--muted); } .ok { color: var(--ok); } .bad { color: var(--bad); } .warn { color: var(--warn); font-weight: 600; }
+    #qr { display: block; margin-top: 8px; background: #fff; padding: 6px; border-radius: 4px; max-width: 100%; }
+    .case { border-top: 1px solid var(--line); padding-top: 8px; margin-top: 8px; }
+    .result { white-space: pre-wrap; margin-top: 4px; }
+    #log { max-height: 480px; overflow: auto; background: var(--bg); padding: 8px; border-radius: 6px; margin: 0; white-space: pre-wrap; }
+  </style>
+</head>
+<body>
+  <h1>WizardConnect × Selene — signing spike</h1>
+  <div class="banner">PRE-HACKATHON SPIKE — NOT PART OF THE SUBMISSION · chipnet, or mainnet sign-only dry run</div>
+  <section id="modeBanner" hidden><span class="warn">MAINNET SIGN-ONLY DRY RUN — every input is fake, nothing is broadcast, no funds move.</span></section>
+
+  <section>
+    <h2>1. Connect</h2>
+    <div class="row"><button id="connect">Connect</button><button id="forget">Disconnect / forget session</button><span id="relayStatus" class="muted"></span></div>
+    <div id="pairing" hidden>
+      <div class="row"><code id="uri"></code><button id="copy">Copy</button></div>
+      <canvas id="qr"></canvas>
+    </div>
+    <div id="dappKey" class="mono muted"></div>
+    <div id="wallet" class="mono"></div>
+    <details style="margin-top:8px">
+      <summary>Manual override (only if xpubs never arrive)</summary>
+      <div class="row">
+        <input id="overrideAddress" placeholder="Selene receive/0 address, bitcoincash:q…" style="flex:1;min-width:0;font:inherit;padding:6px" />
+        <button id="useOverride">Use mainnet dry run</button>
+      </div>
+      <div id="overrideMsg" class="bad mono"></div>
+    </details>
+  </section>
+
+  <section>
+    <h2>2. Chain state</h2>
+    <div class="row"><button id="refresh">Refresh</button></div>
+    <div id="state" class="mono"></div>
+  </section>
+
+  <section>
+    <h2>3. Cases</h2>
+    <div class="case"><div class="row"><button id="runA" disabled>A · simple send</button><span class="muted" id="descA"></span></div><div class="result mono" id="resA"></div></div>
+    <div class="case"><div class="row"><button id="runB" disabled>B · buy (pay into vault)</button><span class="muted" id="descB"></span></div><div class="result mono" id="resB"></div></div>
+    <div class="case"><div class="row"><button id="runC" disabled>C · resale list() (contract sig)</button><span class="muted" id="descC"></span></div><div class="result mono" id="resC"></div></div>
+    <div class="row" style="margin-top:8px"><button id="cancel" disabled>Cancel pending sign request</button></div>
+  </section>
+
+  <section>
+    <h2>Log (every request / response)</h2>
+    <pre id="log"></pre>
+  </section>
+
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
